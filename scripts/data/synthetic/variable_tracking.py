@@ -112,7 +112,7 @@ def generate_input_output(num_noises, num_chains, num_hops, is_icl=False):
     context = context.replace(". \n", ".\n")
 
     template = args.template
-    if is_icl:
+    if is_icl and template != TASKS['variable_tracking']['template'] + TASKS['variable_tracking']['answer_prefix']:
         # remove model template
         cutoff = template.index(TASKS['variable_tracking']['template'][:20])
         cutoff_ans = template.index(TASKS['variable_tracking']['answer_prefix'][:10])
@@ -127,6 +127,13 @@ def generate_input_output(num_noises, num_chains, num_hops, is_icl=False):
 
     return input_text, vars[0]
 
+def randomize_icl(icl_example):
+    icl_tgt_cut = icl_example.index(TASKS['variable_tracking']['answer_prefix'][-10:])
+    icl_tgt = icl_example[icl_tgt_cut+10:].strip().split()
+    for item in icl_tgt:
+        new_item = ''.join(random.choices(string.ascii_uppercase, k=len(item))).upper()
+        icl_example = icl_example.replace(item, new_item)
+    return icl_example
 
 def sys_vartrack_w_noise_random(num_samples: int, max_seq_length: int, incremental: int = 10, 
                                 num_chains: int = 1, num_hops: int = 4,
@@ -172,7 +179,7 @@ def sys_vartrack_w_noise_random(num_samples: int, max_seq_length: int, increment
         if add_fewshot and (icl_example is not None):
             # insert icl_example between model template and input
             cutoff = input_text.index(TASKS['variable_tracking']['template'][:20])
-            input_text = input_text[:cutoff] + ' ' + icl_example + '\n\n' + input_text[cutoff:]
+            input_text = input_text[:cutoff] + randomize_icl(icl_example) + '\n\n' + input_text[cutoff:]
         if args.remove_newline_tab:
             input_text = ' '.join(input_text.replace('\n', ' ').replace('\t', ' ').strip().split())
         
