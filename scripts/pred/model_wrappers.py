@@ -77,6 +77,11 @@ class HuggingFaceModel:
 
         for text, prompt in zip(generated_texts, prompts):
             # remove the input form the generated text
+            # This is a workaround for the llama3 tokenizer not being able to reproduce the same prompt after tokenization
+            # see Issue https://github.com/NVIDIA/RULER/issues/54 for explaination
+            if self.pipeline is None:
+                tokenized_prompt = self.tokenizer(prompt, return_tensors="pt", padding=True)
+                prompt = self.tokenizer.decode(tokenized_prompt.input_ids[0], skip_special_tokens=True)
             if text.startswith(prompt):
                 text = text[len(prompt):]
 
