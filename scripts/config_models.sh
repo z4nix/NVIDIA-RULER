@@ -28,8 +28,14 @@ MODEL_SELECT() {
     MODEL_NAME=$1
     MODEL_DIR=$2
     ENGINE_DIR=$3
-    
-    case $MODEL_NAME in
+     case $MODEL_NAME in
+        recurrent-gemma-2b)
+            MODEL_PATH="/content/modelingRecurrentGemma/src/transformers/models/recurrent_gemma" #colab path
+            MODEL_TEMPLATE_TYPE="base"
+            MODEL_FRAMEWORK="hf"
+            TOKENIZER_PATH=$MODEL_PATH
+            TOKENIZER_TYPE="hf"
+            ;;
         llama2-7b-chat)
             MODEL_PATH="${MODEL_DIR}/llama2-7b-chat-hf"
             MODEL_TEMPLATE_TYPE="meta-chat"
