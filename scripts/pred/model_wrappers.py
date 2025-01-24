@@ -22,15 +22,20 @@ from typing import Dict, List, Optional
 class HuggingFaceModel:
     def __init__(self, name_or_path: str, **generation_kwargs) -> None:
         from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+        import os
 
         self.tokenizer = AutoTokenizer.from_pretrained(name_or_path, trust_remote_code=True)
+        self.is_recurrent_gemma = "recurrent_gemma" in name_or_path
 
         if 'Yarn-Llama' in name_or_path:
             model_kwargs = None
         else:
-            model_kwargs = {"attn_implementation": "flash_attention_2"}
+            model_kwargs = {"attn_implementation": "flash_attention_2"} if not self.is_recurrent_gemma else None
         
         try:
+            if self.is_recurrent_gemma:
+                raise ValueError("Using direct model loading for RecurrentGemma")
+                
             self.pipeline = pipeline(
                 "text-generation",
                 model=name_or_path,
@@ -42,17 +47,26 @@ class HuggingFaceModel:
             )
         except:
             self.pipeline = None
-            self.model = AutoModelForCausalLM.from_pretrained(name_or_path, trust_remote_code=True, device_map="auto", torch_dtype=torch.bfloat16,)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                name_or_path, 
+                trust_remote_code=True, 
+                device_map="auto", 
+                torch_dtype=torch.bfloat16,
+                local_files_only=self.is_recurrent_gemma
+            )
             
         self.generation_kwargs = generation_kwargs
         self.stop = self.generation_kwargs.pop('stop')
 
         if self.tokenizer.pad_token is None:
-            # add pad token to allow batching (known issue for llama2)
             self.tokenizer.padding_side = 'left'
             self.tokenizer.pad_token = self.tokenizer.eos_token
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
+        # # Enable sparsification for RecurrentGemma
+        # if self.is_recurrent_gemma and hasattr(self.model, 'enable_sparsification'):
+        #     self.model.enable_sparsification(k=3)  # You can adjust k as needed
+        #     print("Enabled sparsification for RecurrentGemma")
 
     def __call__(self, prompt: str, **kwargs) -> dict:
         return self.process_batch([prompt], **kwargs)[0]
@@ -66,19 +80,12 @@ class HuggingFaceModel:
             )
             generated_texts = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
         else:
-            output = self.pipeline(text_inputs=prompts, **self.generation_kwargs, )
+            output = self.pipeline(text_inputs=prompts, **self.generation_kwargs)
             assert len(output) == len(prompts)
-            # output in the form of a list of list of dictionaries
-            # outer list len = batch size
-            # inner list len = 1
             generated_texts = [llm_result[0]["generated_text"] for llm_result in output]
 
         results = []
-
         for text, prompt in zip(generated_texts, prompts):
-            # remove the input form the generated text
-            # This is a workaround for the llama3 tokenizer not being able to reproduce the same prompt after tokenization
-            # see Issue https://github.com/NVIDIA/RULER/issues/54 for explaination
             if self.pipeline is None:
                 tokenized_prompt = self.tokenizer(prompt, return_tensors="pt", padding=True)
                 prompt = self.tokenizer.decode(tokenized_prompt.input_ids[0], skip_special_tokens=True)
