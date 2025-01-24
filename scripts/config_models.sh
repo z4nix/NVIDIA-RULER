@@ -30,7 +30,7 @@ MODEL_SELECT() {
     ENGINE_DIR=$3
      case $MODEL_NAME in
         recurrent-gemma-2b)
-            MODEL_PATH="/content/modelingRecurrentGemma/src/transformers/models/recurrent_gemma" #colab path
+            MODEL_PATH="/content/hybrid-interpretability/recurrent_gemma" #colab path
             MODEL_TEMPLATE_TYPE="base"
             MODEL_FRAMEWORK="hf"
             TOKENIZER_PATH=$MODEL_PATH
